@@ -12,9 +12,19 @@ namespace TrickingLibrary.API
 {
     public class Startup
     {
+        private const string AllCors = "All";
         public void ConfigureServices(IServiceCollection services)
         {
             services.AddControllers();
+            services.AddCors(options =>
+            {
+                options.AddPolicy(AllCors, policy =>
+                {
+                    policy.AllowAnyHeader();
+                    policy.AllowAnyOrigin();
+                    policy.AllowAnyMethod();
+                });
+            });
         }
 
         public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
@@ -23,6 +33,8 @@ namespace TrickingLibrary.API
             {
                 app.UseDeveloperExceptionPage();
             }
+
+            app.UseCors(AllCors);
 
             app.UseRouting();
 

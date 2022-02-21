@@ -17,5 +17,3 @@ jobs:
         run: dotnet build
       - name: List Filed in Directory
         run: ls TrickingLibrary.Api/ -R
-      - name: Check NPM Cli
-        run: npm -v

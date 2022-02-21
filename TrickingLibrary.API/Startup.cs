@@ -16,6 +16,9 @@ namespace TrickingLibrary.API
         public void ConfigureServices(IServiceCollection services)
         {
             services.AddControllers();
+            
+            services.AddSingleton<TrickyStore>();
+            
             services.AddCors(options =>
             {
                 options.AddPolicy(AllCors, policy =>

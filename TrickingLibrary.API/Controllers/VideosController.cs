@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Net.Http.Headers;
 
 namespace TrickingLibrary.API.Controllers
 {
@@ -18,6 +19,14 @@ namespace TrickingLibrary.API.Controllers
             _env = env;
         }
 
+        [HttpGet("{videoName}")]
+        public IActionResult GetVideo(string videoName)
+        {
+            var savePath = Path.Combine(_env.WebRootPath, videoName);
+            var fileStream = new FileStream(savePath, FileMode.Open, FileAccess.Read);
+            return new FileStreamResult(fileStream, "video/*");
+        }
+        
         [HttpPost]
         public async Task<IActionResult> UploadVideo(IFormFile video)
         {

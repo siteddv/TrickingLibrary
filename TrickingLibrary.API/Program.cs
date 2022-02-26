@@ -46,6 +46,18 @@ namespace TrickingLibrary.API
                             new TrickRelationship {PrerequisiteId = "backwards-roll"}
                         }
                     });
+                    ctx.Add(new Submission
+                    {
+                        TrickId = "back-flip",
+                        Description = "Test description, I've tried to go for max height",
+                        Video = "vid3.mp4"
+                    });
+                    ctx.Add(new Submission
+                    {
+                        TrickId = "back-flip",
+                        Description = "Test description, I've tried to go for min height",
+                        Video = "vid4.mp4"
+                    });
                 }
             }
 

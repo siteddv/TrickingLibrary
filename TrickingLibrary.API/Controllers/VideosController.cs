@@ -39,7 +39,7 @@ namespace TrickingLibrary.API.Controllers
                 await video.CopyToAsync(fileStream);
             }
 
-            return Ok();
+            return Ok(fileName);
         }
     }
 }

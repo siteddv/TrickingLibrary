@@ -56,6 +56,7 @@ namespace TrickingLibrary.API.Controllers
 
             submission.Deleted = true;
             await _ctx.SaveChangesAsync();
+            
             return Ok();
         }
     }

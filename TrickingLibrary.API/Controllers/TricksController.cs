@@ -24,18 +24,23 @@ namespace TrickingLibrary.API.Controllers
         public IEnumerable<Trick> GetAll() => _dbContext.Tricks.AsEnumerable();
 
         // /api/tricks/{id}
-        [HttpGet("{id:int}")]
-        public Trick GetById(int id) => _dbContext.Tricks.FirstOrDefault(x => x.Id == id);
+        [HttpGet("{id}")]
+        public Trick GetById(string id) => 
+            _dbContext.Tricks
+                .FirstOrDefault(x => x.Id.Equals(id, StringComparison.InvariantCultureIgnoreCase));
 
         // /api/tricks/{id}/submissions
-        [HttpGet("{trickId:int}")]
-        public IEnumerable<Submission> GetListSubmissionsForTrick(int trickId) => 
-            _dbContext.Submissions.Where(sub => sub.TrickId == trickId).AsEnumerable();
+        [HttpGet("{trickId}/submissions")]
+        public IEnumerable<Submission> GetListSubmissionsForTrick(string trickId) => 
+            _dbContext.Submissions.Where(x => x.TrickId.Equals(trickId, StringComparison.InvariantCultureIgnoreCase))
+                .ToList()
+                .AsEnumerable();
 
         // /api/tricks
         [HttpPost]
         public async Task<Trick> Create([FromBody] Trick trick)
         {
+            trick.Id = trick.Name.Replace(" ", "-").ToLowerInvariant();
             _dbContext.Add(trick);
             await _dbContext.SaveChangesAsync();
             
@@ -46,7 +51,7 @@ namespace TrickingLibrary.API.Controllers
         [HttpPut]
         public async Task<Trick> Update([FromBody] Trick trick)
         {
-            if (trick.Id == 0)
+            if (string.IsNullOrEmpty(trick.Id))
                 return null;
 
             _dbContext.Add(trick);
@@ -55,10 +60,19 @@ namespace TrickingLibrary.API.Controllers
         }
 
         // /api/tricks/{id}
-        [HttpDelete("{id:int}")]
-        public IActionResult Delete(int id)
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> Delete(string id)
         {
-            throw new NotImplementedException();
+            var trick = _dbContext.Tricks.FirstOrDefault(x => x.Id.Equals(id));
+            
+            if (trick == null)
+                throw new ArgumentNullException(nameof(id), "Deleting trick by id is null");
+            
+            trick.Deleted = true;
+
+            await _dbContext.SaveChangesAsync();
+            
+            return Ok();
         }
     }
 }

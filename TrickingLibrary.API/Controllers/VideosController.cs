@@ -1,10 +1,11 @@
-﻿using System.IO;
+﻿using System;
+using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Net.Http.Headers;
 
 namespace TrickingLibrary.API.Controllers
 {
@@ -31,7 +32,7 @@ namespace TrickingLibrary.API.Controllers
         public async Task<IActionResult> UploadVideo(IFormFile video)
         {
             var mime = video.FileName.Split('.').Last();
-            var fileName = string.Concat(Path.GetRandomFileName(), '.', mime);
+            var fileName = string.Concat($"temp_{DateTime.Now.Ticks}", ".", mime);            
             var savePath = Path.Combine(_env.WebRootPath, fileName);
 
             await using (var fileStream = new FileStream(savePath, FileMode.Create, FileAccess.Write))

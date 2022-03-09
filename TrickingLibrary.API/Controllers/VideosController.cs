@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using TrickingLibrary.API.BackgroundServices.VideoEditing;
 
 namespace TrickingLibrary.API.Controllers
 {
@@ -13,34 +14,44 @@ namespace TrickingLibrary.API.Controllers
     [Route("api/videos")]
     public class VideosController : ControllerBase
     {
-        private readonly IWebHostEnvironment _env;
+        private readonly VideoManager _videoManager;
 
-        public VideosController(IWebHostEnvironment env)
+        public VideosController(VideoManager videoManager)
         {
-            _env = env;
+            _videoManager = videoManager;
         }
 
         [HttpGet("{videoName}")]
         public IActionResult GetVideo(string videoName)
         {
-            var savePath = Path.Combine(_env.WebRootPath, videoName);
+            var savePath = _videoManager.DevVideoPath(videoName);
+            
+            if (string.IsNullOrEmpty(savePath))
+                return BadRequest();
+            
             var fileStream = new FileStream(savePath, FileMode.Open, FileAccess.Read);
             return new FileStreamResult(fileStream, "video/*");
         }
         
         [HttpPost]
-        public async Task<IActionResult> UploadVideo(IFormFile video)
+        public async Task<string> UploadVideo(IFormFile video)
         {
-            var mime = video.FileName.Split('.').Last();
-            var fileName = string.Concat($"temp_{DateTime.Now.Ticks}", ".", mime);            
-            var savePath = Path.Combine(_env.WebRootPath, fileName);
+            
+            return await _videoManager.SaveTemporaryVideo(video);
+        }
+        
+        [HttpDelete("{fileName}")]
+        public IActionResult DeleteTemporaryVideo(string fileName)
+        {
+            if (!_videoManager.Temporary(fileName))
+                return BadRequest();
 
-            await using (var fileStream = new FileStream(savePath, FileMode.Create, FileAccess.Write))
-            {
-                await video.CopyToAsync(fileStream);
-            }
+            if (!_videoManager.TemporaryVideoExists(fileName))
+                return NoContent();
 
-            return Ok(fileName);
+            _videoManager.DeleteTemporaryVideo(fileName);
+
+            return Ok();
         }
     }
 }

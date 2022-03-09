@@ -10,27 +10,29 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using TrickingLibrary.Data;
-using TrickingLibrary.Models;
 
-namespace TrickingLibrary.API.BackgroundServices
+namespace TrickingLibrary.API.BackgroundServices.VideoEditing
 {
     public class VideoEditingBackgroundService : BackgroundService
     {
         private readonly IWebHostEnvironment _env;
         private readonly ILogger<VideoEditingBackgroundService> _logger;
         private readonly IServiceProvider _serviceProvider;
+        private readonly VideoManager _videoManager;
         private readonly ChannelReader<EditVideoMessage> _channelReader;
 
         public VideoEditingBackgroundService(
             IWebHostEnvironment env,
             Channel<EditVideoMessage> channel,
             ILogger<VideoEditingBackgroundService> logger,
-            IServiceProvider serviceProvider)
+            IServiceProvider serviceProvider,
+            VideoManager videoManager)
         {
             _env = env;
             _logger = logger;
             _serviceProvider = serviceProvider;
             _channelReader = channel.Reader;
+            _videoManager = videoManager;
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -40,14 +42,14 @@ namespace TrickingLibrary.API.BackgroundServices
                 var message = await _channelReader.ReadAsync(stoppingToken);
                 try
                 {
-                    var inputPath = Path.Combine(_env.WebRootPath, message.Input);
-                    var outputName = $"c{DateTime.Now.Ticks}.mp4";
-                    var outputPath = Path.Combine(_env.WebRootPath, outputName);
+                    var inputPath = _videoManager.TemporarySavePath(message.Input);
+                    var outputName = _videoManager.GenerateConvertedFileName();
+                    var outputPath = _videoManager.TemporarySavePath(outputName);
                     var startInfo = new ProcessStartInfo
                     {
                         FileName = Path.Combine(_env.ContentRootPath, "ffmpeg", "ffmpeg.exe"),
                         Arguments = $"-y -i {inputPath} -an -vf scale=540x380 {outputPath}",
-                        WorkingDirectory = _env.WebRootPath,
+                        WorkingDirectory = _videoManager.WorkingDirectory,
                         CreateNoWindow = true,
                         UseShellExecute = false,
                     };
@@ -58,25 +60,28 @@ namespace TrickingLibrary.API.BackgroundServices
                         process.WaitForExit();
                     }
 
+                    if (!_videoManager.TemporaryVideoExists(outputName))
+                        throw new Exception("FFMPEG failed to generate converted video");
+                    
                     using (var scope = _serviceProvider.CreateScope())
                     {
                         var ctx = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
                         var submission = ctx.Submissions.FirstOrDefault(x => x.Id.Equals(message.SubmissionId));
 
-                        //todo: clean up if error
                         submission.Video = outputName;
                         submission.VideoProcessed = true;
 
                         await ctx.SaveChangesAsync(stoppingToken);
-                        //todo: clean up after success
                     }
                 }
                 catch (Exception e)
                 {
-                    //todo: clean up if error
-
                     _logger.LogError(e, "Video Processing Failed for {0}", message.Input);
+                }
+                finally
+                {
+                    _videoManager.DeleteTemporaryVideo(message.Input);
                 }
             }
         }

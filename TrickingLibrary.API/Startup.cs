@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using TrickingLibrary.API.BackgroundServices;
+using TrickingLibrary.API.BackgroundServices.VideoEditing;
 using TrickingLibrary.Data;
 using TrickingLibrary.Models;
 
@@ -21,6 +22,7 @@ namespace TrickingLibrary.API
             
             services.AddHostedService<VideoEditingBackgroundService>();
             services.AddSingleton(_ => Channel.CreateUnbounded<EditVideoMessage>());
+            services.AddSingleton<VideoManager>();
             
             services.AddCors(options =>
             {

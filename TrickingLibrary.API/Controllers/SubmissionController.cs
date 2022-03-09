@@ -3,6 +3,8 @@ using System.Linq;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
+using TrickingLibrary.API.BackgroundServices;
+using TrickingLibrary.API.BackgroundServices.VideoEditing;
 using TrickingLibrary.Data;
 using TrickingLibrary.Models;
 
@@ -20,7 +22,8 @@ namespace TrickingLibrary.API.Controllers
         }
 
         [HttpGet]
-        public IEnumerable<Submission> All() => _ctx.Submissions
+        public IEnumerable<Submission> All() => 
+            _ctx.Submissions
             .Where(x => x.VideoProcessed)
             .ToList();
 
@@ -28,11 +31,16 @@ namespace TrickingLibrary.API.Controllers
         public Submission Get(int id) => _ctx.Submissions.FirstOrDefault(x => x.Id.Equals(id));
 
         [HttpPost]
-        public async Task<Submission> Create(
+        public async Task<IActionResult> Create(
             [FromBody] Submission submission,
-            [FromServices] Channel<EditVideoMessage> channel)
+            [FromServices] Channel<EditVideoMessage> channel,
+            [FromServices] VideoManager videoManager)
         {
-            //todo: validate video path
+            if (!videoManager.TemporaryVideoExists(submission.Video))
+            {
+                return BadRequest();
+            }
+
             submission.VideoProcessed = false;
             _ctx.Add(submission);
             await _ctx.SaveChangesAsync();
@@ -41,7 +49,7 @@ namespace TrickingLibrary.API.Controllers
                 SubmissionId = submission.Id,
                 Input = submission.Video,
             });
-            return submission;
+            return Ok(submission);
         }
 
         [HttpPut]

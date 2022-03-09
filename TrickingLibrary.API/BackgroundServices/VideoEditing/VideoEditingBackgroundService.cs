@@ -10,6 +10,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using TrickingLibrary.Data;
+using TrickingLibrary.Models;
 
 namespace TrickingLibrary.API.BackgroundServices.VideoEditing
 {
@@ -43,12 +44,14 @@ namespace TrickingLibrary.API.BackgroundServices.VideoEditing
                 try
                 {
                     var inputPath = _videoManager.TemporarySavePath(message.Input);
-                    var outputName = _videoManager.GenerateConvertedFileName();
-                    var outputPath = _videoManager.TemporarySavePath(outputName);
+                    var outputConvertedName = _videoManager.GenerateConvertedFileName();
+                    var outputThumbnailName = _videoManager.GenerateThumbnailFileName();
+                    var outputConvertedPath = _videoManager.TemporarySavePath(outputConvertedName);
+                    var outputThumbnailPath = _videoManager.TemporarySavePath(outputThumbnailName);
                     var startInfo = new ProcessStartInfo
                     {
                         FileName = Path.Combine(_env.ContentRootPath, "ffmpeg", "ffmpeg.exe"),
-                        Arguments = $"-y -i {inputPath} -an -vf scale=540x380 {outputPath}",
+                        Arguments = $"-y -i {inputPath} -an -vf scale=540x380 {outputConvertedPath} -ss 00:00:00 -vframes 1 -vf scale=540x380 {outputThumbnailPath}",
                         WorkingDirectory = _videoManager.WorkingDirectory,
                         CreateNoWindow = true,
                         UseShellExecute = false,
@@ -60,7 +63,7 @@ namespace TrickingLibrary.API.BackgroundServices.VideoEditing
                         process.WaitForExit();
                     }
 
-                    if (!_videoManager.TemporaryVideoExists(outputName))
+                    if (!_videoManager.TemporaryVideoExists(outputConvertedName))
                         throw new Exception("FFMPEG failed to generate converted video");
                     
                     using (var scope = _serviceProvider.CreateScope())
@@ -69,8 +72,11 @@ namespace TrickingLibrary.API.BackgroundServices.VideoEditing
 
                         var submission = ctx.Submissions.FirstOrDefault(x => x.Id.Equals(message.SubmissionId));
 
-                        submission.Video = outputName;
-                        submission.VideoProcessed = true;
+                        submission.Video = new Video
+                        {
+                            VideoLink = outputConvertedName,
+                            ThumbLink = outputThumbnailName,
+                        };
 
                         await ctx.SaveChangesAsync(stoppingToken);
                     }

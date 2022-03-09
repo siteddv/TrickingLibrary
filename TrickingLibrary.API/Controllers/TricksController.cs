@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using TrickingLibrary.API.Forms;
 using TrickingLibrary.API.ViewModels;
 using TrickingLibrary.Data;
@@ -36,7 +37,9 @@ namespace TrickingLibrary.API.Controllers
         // /api/tricks/{id}/submissions
         [HttpGet("{trickId}/submissions")]
         public IEnumerable<Submission> GetListSubmissionsForTrick(string trickId) => 
-            _dbContext.Submissions.Where(x => x.TrickId.Equals(trickId, StringComparison.InvariantCultureIgnoreCase))
+            _dbContext.Submissions
+                .Include(x => x.Video)
+                .Where(x => x.TrickId.Equals(trickId, StringComparison.InvariantCultureIgnoreCase))
                 .ToList()
                 .AsEnumerable();
 

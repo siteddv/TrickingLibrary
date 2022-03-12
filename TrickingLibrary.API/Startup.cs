@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using System.Threading.Channels;
 using IdentityServer4;
 using IdentityServer4.Models;
@@ -58,6 +59,8 @@ namespace TrickingLibrary.API
 
             app.UseIdentityServer();
 
+            app.UseAuthorization();
+
             app.UseEndpoints(endpoints =>
             {
                 endpoints.MapDefaultControllerRoute();
@@ -88,10 +91,7 @@ namespace TrickingLibrary.API
                 .AddEntityFrameworkStores<IdentityDbContext>()
                 .AddDefaultTokenProviders();
 
-            services.ConfigureApplicationCookie(config =>
-            {
-                config.LoginPath = "/Account/Login";
-            });
+            services.ConfigureApplicationCookie(config => { config.LoginPath = "/Account/Login"; });
 
             var identityServerBuilder = services.AddIdentityServer();
 
@@ -103,6 +103,11 @@ namespace TrickingLibrary.API
                 {
                     new IdentityResources.OpenId(),
                     new IdentityResources.Profile(),
+                });
+            
+                identityServerBuilder.AddInMemoryApiScopes(new []
+                {
+                    new ApiScope(IdentityServerConstants.LocalApi.ScopeName, new[] {ClaimTypes.Role}),
                 });
 
                 identityServerBuilder.AddInMemoryClients(new[]
@@ -120,6 +125,7 @@ namespace TrickingLibrary.API
                         {
                             IdentityServerConstants.StandardScopes.OpenId,
                             IdentityServerConstants.StandardScopes.Profile,
+                            IdentityServerConstants.LocalApi.ScopeName,
                         },
                         
                         RequirePkce = true,
@@ -131,6 +137,19 @@ namespace TrickingLibrary.API
 
                 identityServerBuilder.AddDeveloperSigningCredential();
             }
+            
+            services.AddLocalApiAuthentication();
+
+            services.AddAuthorization(options =>
+            {
+                options.AddPolicy(TrickingLibraryConstants.Policies.Mod, policy =>
+                {
+                    var is4Policy = options.GetPolicy(IdentityServerConstants.LocalApi.PolicyName);
+                    policy.Combine(is4Policy);
+                    policy.RequireClaim(ClaimTypes.Role, TrickingLibraryConstants.Roles.Mod);
+                });
+            });
         }
+        
     }
 }

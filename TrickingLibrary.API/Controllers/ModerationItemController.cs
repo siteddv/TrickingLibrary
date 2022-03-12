@@ -3,7 +3,6 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using TrickingLibrary.API.ViewModels;
 using TrickingLibrary.Data;
 using TrickingLibrary.Models;
@@ -38,9 +37,7 @@ namespace TrickingLibrary.API.Controllers
         [HttpPost("{id:int}/comments")]
         public async Task<IActionResult> Comment(int id, [FromBody] Comment comment)
         {
-            var modItem = _ctx.ModerationItems.FirstOrDefault(x => x.Id == id);
-
-            if (modItem == null)
+            if (!_ctx.ModerationItems.Any(x => x.Id == id))
                 return NoContent();
             
             var regex = new Regex(@"\B(?<tag>@[a-zA-Z0-9-_]+)");
@@ -54,10 +51,30 @@ namespace TrickingLibrary.API.Controllers
                             .Replace(tag, $"<a href=\"{tag}-user-link\">{tag}</a>");
                     });
 
-            modItem.Comments.Add(comment);
+            comment.ModerationItemId = id;
+            _ctx.Add(comment);
             await _ctx.SaveChangesAsync();
 
             return Ok(CommentViewModel.Create(comment));
+        }
+        
+        [HttpGet("{id:int}/reviews")]
+        public IEnumerable<Review> GetReviews(int id) =>
+            _ctx.Reviews
+                .Where(x => x.ModerationItemId.Equals(id))
+                .ToList();
+
+        [HttpPost("{id:int}/reviews")]
+        public async Task<IActionResult> Review(int id, [FromBody] Review review)
+        {
+            if (!_ctx.ModerationItems.Any(x => x.Id == id))
+                return NoContent();
+
+            review.ModerationItemId = id;
+            _ctx.Add(review);
+            await _ctx.SaveChangesAsync();
+
+            return Ok(review);
         }
     }
 }

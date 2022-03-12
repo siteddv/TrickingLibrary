@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using TrickingLibrary.Data;
@@ -107,6 +108,10 @@ namespace TrickingLibrary.API
                         ThumbLink = "two.jpg"
                     });
                     ctx.SaveChanges();
+                    
+                    var userMgr = scope.ServiceProvider.GetRequiredService<UserManager<IdentityUser>>();
+                    var user = new IdentityUser("test");
+                    userMgr.CreateAsync(user, "password").GetAwaiter().GetResult();
                 }
             }
 

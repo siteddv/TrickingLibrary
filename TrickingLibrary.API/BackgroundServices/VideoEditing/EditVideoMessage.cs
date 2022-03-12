@@ -1,4 +1,4 @@
-﻿namespace TrickingLibrary.API.BackgroundServices
+﻿namespace TrickingLibrary.API.BackgroundServices.VideoEditing
 {
     public class EditVideoMessage
     {

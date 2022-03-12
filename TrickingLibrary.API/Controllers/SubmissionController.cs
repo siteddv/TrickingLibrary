@@ -3,7 +3,6 @@ using System.Linq;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
-using TrickingLibrary.API.BackgroundServices;
 using TrickingLibrary.API.BackgroundServices.VideoEditing;
 using TrickingLibrary.API.Forms;
 using TrickingLibrary.Data;
@@ -28,7 +27,7 @@ namespace TrickingLibrary.API.Controllers
             .Where(x => x.VideoProcessed)
             .ToList();
 
-        [HttpGet("{id}")]
+        [HttpGet("{id:int}")]
         public Submission Get(int id) => _ctx.Submissions.FirstOrDefault(x => x.Id.Equals(id));
 
         [HttpPost]

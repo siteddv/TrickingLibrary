@@ -96,6 +96,16 @@ namespace TrickingLibrary.API
                         Target = "forwards-roll",
                         Type = ModerationTypes.Trick,
                     });
+                    ctx.Add(new Video
+                    {
+                        VideoLink = "one.mp4",
+                        ThumbLink = "one.jpg"
+                    });
+                    ctx.Add(new Video
+                    {
+                        VideoLink = "two.mp4",
+                        ThumbLink = "two.jpg"
+                    });
                     ctx.SaveChanges();
                 }
             }

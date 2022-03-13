@@ -123,7 +123,11 @@ namespace TrickingLibrary.API
                         ClientId = "web-client",
                         AllowedGrantTypes = GrantTypes.Code,
 
-                        RedirectUris = new[] {"https://localhost:3000/oidc/sign-in-callback.html"},
+                        RedirectUris = new[]
+                        {
+                            "https://localhost:3000/oidc/sign-in-callback.html",
+                            "https://localhost:3000/oidc/sign-in-silent-callback.html"
+                        },
                         PostLogoutRedirectUris = new[] {"https://localhost:3000"},
                         AllowedCorsOrigins = new[] {"https://localhost:3000"},
 

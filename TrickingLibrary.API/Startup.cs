@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using TrickingLibrary.API.BackgroundServices.VideoEditing;
@@ -16,12 +17,14 @@ namespace TrickingLibrary.API
 {
     public class Startup
     {
+        private readonly IConfiguration _config;
         private readonly IWebHostEnvironment _env;
         private const string AllCors = "All";
         
-        public Startup(IWebHostEnvironment env)
+        public Startup(IWebHostEnvironment env, IConfiguration config)
         {
             _env = env;
+            _config = config;
         }
         
         public void ConfigureServices(IServiceCollection services)
@@ -38,7 +41,7 @@ namespace TrickingLibrary.API
             
             services.AddHostedService<VideoEditingBackgroundService>()
                 .AddSingleton(_ => Channel.CreateUnbounded<EditVideoMessage>())
-                .AddSingleton<VideoManager>()
+                .AddFileManager(_config)
                 .AddCors(options => options.AddPolicy(AllCors, build => build.AllowAnyHeader()
                     .AllowAnyOrigin()
                     .AllowAnyMethod()));

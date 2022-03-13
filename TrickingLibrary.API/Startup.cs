@@ -1,4 +1,3 @@
-using System.Security.Claims;
 using System.Threading.Channels;
 using IdentityServer4;
 using IdentityServer4.Models;
@@ -103,7 +102,7 @@ namespace TrickingLibrary.API
 
             if (_env.IsDevelopment())
             {
-                identityServerBuilder.AddInMemoryIdentityResources(new IdentityResource[]
+                identityServerBuilder.AddInMemoryIdentityResources(new []
                 {
                     new IdentityResources.OpenId(),
                     new IdentityResources.Profile(),

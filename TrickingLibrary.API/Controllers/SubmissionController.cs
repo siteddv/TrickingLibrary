@@ -10,9 +10,8 @@ using TrickingLibrary.Models;
 
 namespace TrickingLibrary.API.Controllers
 {
-    [ApiController]
     [Route("api/submissions")]
-    public class SubmissionsController : ControllerBase
+    public class SubmissionsController : ApiController
     {
         private readonly AppDbContext _ctx;
 
@@ -46,6 +45,7 @@ namespace TrickingLibrary.API.Controllers
                 TrickId = submissionForm.TrickId,
                 Description = submissionForm.Description,
                 VideoProcessed = false,
+                UserId = UserId
             };
             _ctx.Add(submission);
             await _ctx.SaveChangesAsync();

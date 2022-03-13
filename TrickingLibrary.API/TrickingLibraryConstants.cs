@@ -1,9 +1,12 @@
-﻿namespace TrickingLibrary.API
+﻿using IdentityServer4;
+
+namespace TrickingLibrary.API
 {
     public struct TrickingLibraryConstants
     {
         public struct Policies
         {
+            public const string User = IdentityServerConstants.LocalApi.PolicyName;
             public const string Mod = nameof(Mod);
         }
 

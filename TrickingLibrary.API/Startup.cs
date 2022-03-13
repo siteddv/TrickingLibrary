@@ -1,4 +1,5 @@
 using System.Threading.Channels;
+using IdentityModel;
 using IdentityServer4;
 using IdentityServer4.Models;
 using Microsoft.AspNetCore.Builder;
@@ -74,6 +75,7 @@ namespace TrickingLibrary.API
 
             services.AddIdentity<IdentityUser, IdentityRole>(options =>
                 {
+                    options.User.RequireUniqueEmail = true;
                     if (_env.IsDevelopment())
                     {
                         options.Password.RequireDigit = false;
@@ -113,7 +115,11 @@ namespace TrickingLibrary.API
                 identityServerBuilder.AddInMemoryApiScopes(new []
                 {
                     new ApiScope(IdentityServerConstants.LocalApi.ScopeName,
-                        new[] {TrickingLibraryConstants.Claims.Role}),
+                        new[]
+                        {
+                            JwtClaimTypes.PreferredUserName,
+                            TrickingLibraryConstants.Claims.Role
+                        }),
                 });
 
                 identityServerBuilder.AddInMemoryClients(new[]

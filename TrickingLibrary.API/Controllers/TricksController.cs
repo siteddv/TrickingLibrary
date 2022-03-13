@@ -2,14 +2,13 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using IdentityServer4;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using TrickingLibrary.API.Forms;
 using TrickingLibrary.API.ViewModels;
 using TrickingLibrary.Data;
 using TrickingLibrary.Models;
+using TrickingLibrary.Models.Moderation;
 
 namespace TrickingLibrary.API.Controllers
 {
@@ -26,22 +25,18 @@ namespace TrickingLibrary.API.Controllers
 
         // /api/tricks
         [HttpGet]
-        public IEnumerable<object> GetAll() => _dbContext.Tricks.Select(TrickViewModel.Projection).ToList();
+        public IEnumerable<object> GetAll() => _dbContext
+            .Tricks
+            .Where(x => x.Active)
+            .Select(TrickViewModel.Projection)
+            .ToList();
 
-        [HttpGet("test")]
-        [Authorize(Policy = IdentityServerConstants.LocalApi.PolicyName)]
-        public string TestAuth() => "test";
-
-
-        [HttpGet("mod")]
-        [Authorize(Policy = TrickingLibraryConstants.Policies.Mod)]
-        public string ModAuth() => "mod";
-        
         // /api/tricks/{id}
         [HttpGet("{id}")]
         public object GetById(string id) => 
             _dbContext.Tricks
-                .Where(x => x.Id.Equals(id, StringComparison.InvariantCultureIgnoreCase))
+                .Where(x => x.Active)
+                .Where(x => x.Slug.Equals(id, StringComparison.InvariantCultureIgnoreCase))
                 .Select(TrickViewModel.Projection)
                 .FirstOrDefault();
 
@@ -60,34 +55,69 @@ namespace TrickingLibrary.API.Controllers
         {
             var trick = new Trick
             {
-                Id = trickForm.Name.Replace(" ", "-").ToLowerInvariant(),
+                Slug  = trickForm.Name.Replace(" ", "-").ToLowerInvariant(),
                 Name = trickForm.Name,
+                Version = 1,
                 Description = trickForm.Description,
                 Difficulty = trickForm.Difficulty,
                 TrickCategories = trickForm.Categories.Select(x => new TrickCategory {CategoryId = x}).ToList()
             };
             _dbContext.Add(trick);
+            _dbContext.Add(new ModerationItem
+            {
+                Target = trick.Slug,
+                TargetVersion = trick.Version,
+                Type = ModerationTypes.Trick,
+            });
             await _dbContext.SaveChangesAsync();
             return TrickViewModel.Create(trick);
         }
 
         // /api/tricks
         [HttpPut]
-        public async Task<object> Update([FromBody] Trick trick)
+        public async Task<IActionResult> Update([FromBody] TrickForm trickForm)
         {
-            if (string.IsNullOrEmpty(trick.Id))
-                return null;
+            var trick = _dbContext.Tricks.FirstOrDefault(x => x.Slug == trickForm.Id);
+            
+            if (trick == null)
+                return NoContent();
 
+            var newTrick = new Trick
+            {
+                Slug = trick.Slug,
+                Name = trick.Name,
+                Version = _dbContext.Tricks.LatestVersion(1),
+                Description = trickForm.Description,
+                Difficulty = trickForm.Difficulty,
+                Prerequisites = trickForm.Prerequisites
+                    .Select(x => new TrickRelationship {PrerequisiteId = x})
+                    .ToList(),
+                Progressions = trickForm.Progressions
+                    .Select(x => new TrickRelationship {ProgressionId = x})
+                    .ToList(),
+                TrickCategories = trickForm.Categories.Select(x => new TrickCategory {CategoryId = x}).ToList()
+            };
+
+            _dbContext.Add(newTrick);
+            _dbContext.Add(new ModerationItem
+            {
+                Target = trick.Slug,
+                TargetVersion = newTrick.Version,
+                Type = ModerationTypes.Trick,
+            });
+            
             _dbContext.Add(trick);
             await _dbContext.SaveChangesAsync();
-            return TrickViewModel.Create(trick);
+            
+            // todo redirect to the mod item instead of returning the trick
+            return Ok(TrickViewModel.Create(newTrick));
         }
 
         // /api/tricks/{id}
         [HttpDelete("{id}")]
         public async Task<IActionResult> Delete(string id)
         {
-            var trick = _dbContext.Tricks.FirstOrDefault(x => x.Id.Equals(id));
+            var trick = _dbContext.Tricks.FirstOrDefault(x => x.Slug.Equals(id));
             
             if (trick == null)
                 throw new ArgumentNullException(nameof(id), "Deleting trick by id is null");

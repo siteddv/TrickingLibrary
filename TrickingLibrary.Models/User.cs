@@ -1,10 +1,11 @@
 ﻿using System.Collections.Generic;
+using TrickingLibrary.Models.Abstractions;
 
 namespace TrickingLibrary.Models
 {
-    public class User : BaseModel<string>
+    public class User : TemporalModel
     {
-        public string Name { get; set; }
+        public string Id { get; set; }
         
         public string Username { get; set; }
         

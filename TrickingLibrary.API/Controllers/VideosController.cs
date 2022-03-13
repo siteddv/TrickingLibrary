@@ -20,7 +20,7 @@ namespace TrickingLibrary.API.Controllers
         [HttpGet("{videoName}")]
         public IActionResult GetVideo(string videoName)
         {
-            var savePath = _videoManager.DevVideoPath(videoName);
+            var savePath = _videoManager.GetSavePath(videoName);
             
             if (string.IsNullOrEmpty(savePath))
                 return BadRequest();

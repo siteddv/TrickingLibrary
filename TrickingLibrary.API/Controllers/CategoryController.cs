@@ -28,11 +28,11 @@ namespace TrickingLibrary.API.Controllers
             _ctx.Categories
                 .FirstOrDefault(x => x.Slug.Equals(id, StringComparison.InvariantCultureIgnoreCase));
 
-        [HttpGet("{id}/tricks")]
-        public IEnumerable<Trick> ListCategoryTricks(string id) =>
+        [HttpGet("{id:int}/tricks")]
+        public IEnumerable<Trick> ListCategoryTricks(int id) =>
             _ctx.TrickCategories
                 .Include(x => x.Trick)
-                .Where(x => x.CategoryId.Equals(id, StringComparison.InvariantCultureIgnoreCase))
+                .Where(x => x.CategoryId == id)
                 .Select(x => x.Trick)
                 .ToList();
 

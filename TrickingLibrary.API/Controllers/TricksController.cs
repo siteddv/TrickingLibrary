@@ -33,12 +33,30 @@ namespace TrickingLibrary.API.Controllers
 
         // /api/tricks/{id}
         [HttpGet("{id}")]
-        public object GetById(string id) => 
-            _dbContext.Tricks
-                .Where(x => x.Active)
-                .Where(x => x.Slug.Equals(id, StringComparison.InvariantCultureIgnoreCase))
+        public IActionResult  GetById(string id)
+        { 
+            var query = _dbContext.Tricks.AsQueryable();
+
+            if (int.TryParse(id, out var intId))
+            {
+                query = query.Where(x => x.Id == intId);
+            }
+            else
+            {
+                query = query.Where(x => 
+                    x.Slug.Equals(id, StringComparison.InvariantCultureIgnoreCase)
+                    && x.Active);
+            }
+
+            var trick = query
                 .Select(TrickViewModel.Projection)
                 .FirstOrDefault();
+
+            if (trick == null)
+                return NoContent();
+
+            return Ok(trick);
+        }
 
         // /api/tricks/{id}/submissions
         [HttpGet("{trickId}/submissions")]
@@ -63,10 +81,10 @@ namespace TrickingLibrary.API.Controllers
                 TrickCategories = trickForm.Categories.Select(x => new TrickCategory {CategoryId = x}).ToList()
             };
             _dbContext.Add(trick);
+            await _dbContext.SaveChangesAsync();
             _dbContext.Add(new ModerationItem
             {
-                Target = trick.Slug,
-                TargetVersion = trick.Version,
+                Target = trick.Id,
                 Type = ModerationTypes.Trick,
             });
             await _dbContext.SaveChangesAsync();
@@ -77,7 +95,7 @@ namespace TrickingLibrary.API.Controllers
         [HttpPut]
         public async Task<IActionResult> Update([FromBody] TrickForm trickForm)
         {
-            var trick = _dbContext.Tricks.FirstOrDefault(x => x.Slug == trickForm.Id);
+            var trick = _dbContext.Tricks.FirstOrDefault(x => x.Id == trickForm.Id);
             
             if (trick == null)
                 return NoContent();
@@ -86,7 +104,7 @@ namespace TrickingLibrary.API.Controllers
             {
                 Slug = trick.Slug,
                 Name = trick.Name,
-                Version = _dbContext.Tricks.LatestVersion(1),
+                Version = trick.Version + 1,
                 Description = trickForm.Description,
                 Difficulty = trickForm.Difficulty,
                 Prerequisites = trickForm.Prerequisites
@@ -99,10 +117,11 @@ namespace TrickingLibrary.API.Controllers
             };
 
             _dbContext.Add(newTrick);
+            await _dbContext.SaveChangesAsync();
             _dbContext.Add(new ModerationItem
             {
-                Target = trick.Slug,
-                TargetVersion = newTrick.Version,
+                Current = trick.Id,
+                Target = newTrick.Id,
                 Type = ModerationTypes.Trick,
             });
             

@@ -17,19 +17,19 @@ namespace TrickingLibrary.API.BackgroundServices.VideoEditing
     {
         private readonly ILogger<VideoEditingBackgroundService> _logger;
         private readonly IServiceProvider _serviceProvider;
-        private readonly IFileManager _fileManagerLocal;
+        private readonly IFileManager _fileManager;
         private readonly ChannelReader<EditVideoMessage> _channelReader;
 
         public VideoEditingBackgroundService(
             Channel<EditVideoMessage> channel,
             ILogger<VideoEditingBackgroundService> logger,
             IServiceProvider serviceProvider,
-            IFileManager fileManagerLocal)
+            IFileManager fileManager)
         {
             _logger = logger;
             _serviceProvider = serviceProvider;
             _channelReader = channel.Reader;
-            _fileManagerLocal = fileManagerLocal;
+            _fileManager = fileManager;
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -37,16 +37,16 @@ namespace TrickingLibrary.API.BackgroundServices.VideoEditing
             while (await _channelReader.WaitToReadAsync(stoppingToken))
             {
                 var message = await _channelReader.ReadAsync(stoppingToken);
-                var inputPath = _fileManagerLocal.TemporarySavePath(message.Input);
+                var inputPath = _fileManager.TemporarySavePath(message.Input);
                 var outputConvertedName = TrickingLibraryConstants.Files.GenerateConvertedFileName();
                 var outputThumbnailName = TrickingLibraryConstants.Files.GenerateThumbnailFileName();
-                var outputConvertedPath = _fileManagerLocal.TemporarySavePath(outputConvertedName);
-                var outputThumbnailPath = _fileManagerLocal.TemporarySavePath(outputThumbnailName);
+                var outputConvertedPath = _fileManager.TemporarySavePath(outputConvertedName);
+                var outputThumbnailPath = _fileManager.TemporarySavePath(outputThumbnailName);
                 try
                 {
                     var startInfo = new ProcessStartInfo
                     {
-                        FileName = _fileManagerLocal.GetFfmpegPath(),
+                        FileName = _fileManager.GetFfmpegPath(),
                         Arguments = $"-y -i {inputPath} -an -vf scale=540x380 {outputConvertedPath} -ss 00:00:00 -vframes 1 -vf scale=540x380 {outputThumbnailPath}",
                         CreateNoWindow = true,
                         UseShellExecute = false,
@@ -58,10 +58,10 @@ namespace TrickingLibrary.API.BackgroundServices.VideoEditing
                         process.WaitForExit();
                     }
 
-                    if (!_fileManagerLocal.TemporaryFileExists(outputConvertedName))
+                    if (!_fileManager.TemporaryFileExists(outputConvertedName))
                         throw new Exception("FFMPEG failed to generate converted video");
                     
-                    if (!_fileManagerLocal.TemporaryFileExists(outputThumbnailName))
+                    if (!_fileManager.TemporaryFileExists(outputThumbnailName))
                         throw new Exception("FFMPEG failed to generate thumbnail");
                     
                     using (var scope = _serviceProvider.CreateScope())
@@ -72,8 +72,8 @@ namespace TrickingLibrary.API.BackgroundServices.VideoEditing
 
                         submission.Video = new Video
                         {
-                            VideoLink = _fileManagerLocal.GetFileUrl(outputConvertedName, FileType.Video),
-                            ThumbLink = _fileManagerLocal.GetFileUrl(outputThumbnailName, FileType.Image),
+                            VideoLink = _fileManager.GetFileUrl(outputConvertedName, FileType.Video),
+                            ThumbLink = _fileManager.GetFileUrl(outputThumbnailName, FileType.Image),
                         };
 
                         await ctx.SaveChangesAsync(stoppingToken);
@@ -82,12 +82,12 @@ namespace TrickingLibrary.API.BackgroundServices.VideoEditing
                 catch (Exception e)
                 {
                     _logger.LogError(e, "Video Processing Failed for {0}", message.Input);
-                    _fileManagerLocal.DeleteTemporaryFile(outputConvertedName);
-                    _fileManagerLocal.DeleteTemporaryFile(outputThumbnailName);
+                    _fileManager.DeleteTemporaryFile(outputConvertedName);
+                    _fileManager.DeleteTemporaryFile(outputThumbnailName);
                 }
                 finally
                 {
-                    _fileManagerLocal.DeleteTemporaryFile(message.Input);
+                    _fileManager.DeleteTemporaryFile(message.Input);
                 }
             }
         }

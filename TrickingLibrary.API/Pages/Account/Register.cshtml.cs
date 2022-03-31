@@ -6,7 +6,7 @@ using TrickingLibrary.API.Forms;
 
 namespace TrickingLibrary.API.Pages.Account
 {
-    public class Register : PageModel
+    public class Register : BasePage
     {
         [BindProperty] public RegisterForm Form { get; set; }
 

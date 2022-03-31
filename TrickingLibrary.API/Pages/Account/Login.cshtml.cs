@@ -3,10 +3,11 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using TrickingLibrary.API.Forms;
+using TrickingLibrary.Models;
 
 namespace TrickingLibrary.API.Pages.Account
 {
-    public class Login : PageModel
+    public class Login : BasePage
     {
         [BindProperty] public LoginForm Form { get; set; }
 
@@ -28,6 +29,8 @@ namespace TrickingLibrary.API.Pages.Account
             {
                 return Redirect(Form.ReturnUrl);
             }
+
+            CustomErrors.Add("Invalid login attempt, please try again.");
 
             return Page();
         }

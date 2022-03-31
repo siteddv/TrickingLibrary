@@ -34,13 +34,18 @@ namespace TrickingLibrary.API
                                 TrickingLibraryConstants.Roles.Mod))
                         .GetAwaiter()
                         .GetResult();
-                    
-                    ctx.Add(new Difficulty {Id = 1, Slug = "easy", Active = true, Version = 1, Name = "Easy", Description = "Easy Test"});
-                    ctx.Add(new Difficulty {Id = 2, Slug = "medium", Active = true, Version = 1, Name = "Medium", Description = "Medium Test"});
-                    ctx.Add(new Difficulty {Id = 3, Slug = "hard", Active = true, Version = 1, Name = "Hard", Description = "Hard Test"});
-                    ctx.Add(new Category {Id = 1, Slug = "kick", Active = true, Version = 1, Name = "Kick", Description = "Kick Test"});
-                    ctx.Add(new Category {Id = 2, Slug = "flip", Active = true, Version = 1, Name = "Flip", Description = "Flip Test"});
-                    ctx.Add(new Category {Id = 3, Slug = "transition", Active = true, Version = 1, Name = "Transition", Description = "Transition Test"});
+                    ctx.Add(new User
+                    {
+                        Id = testUser.Id,
+                        Username = testUser.UserName,
+                        Image = "https://localhost:5001/api/files/image/user.jpg"
+                    });
+                    ctx.Add(new Difficulty {Id = "easy", Name = "Easy", Description = "Easy Test"});
+                    ctx.Add(new Difficulty {Id = "medium", Name = "Medium", Description = "Medium Test"});
+                    ctx.Add(new Difficulty {Id = "hard", Name = "Hard", Description = "Hard Test"});
+                    ctx.Add(new Category {Id = "kick", Name = "Kick", Description = "Kick Test"});
+                    ctx.Add(new Category {Id = "flip", Name = "Flip", Description = "Flip Test"});
+                    ctx.Add(new Category {Id = "transition", Name = "Transition", Description = "Transition Test"});
                     ctx.Add(new Trick
                     {
                         Id = 1,
@@ -50,7 +55,7 @@ namespace TrickingLibrary.API
                         Version = 1,
                         Description = "This is a test backwards roll",
                         Difficulty = "easy",
-                        TrickCategories = new List<TrickCategory> {new TrickCategory {CategoryId = 2}}
+                        TrickCategories = new List<TrickCategory> {new TrickCategory {CategoryId = "flip"}}
                     });
                     ctx.Add(new Trick
                     {
@@ -61,18 +66,18 @@ namespace TrickingLibrary.API
                         Version = 1,
                         Description = "This is a test forwards roll",
                         Difficulty = "easy",
-                        TrickCategories = new List<TrickCategory> {new TrickCategory {CategoryId = 2}}
+                        TrickCategories = new List<TrickCategory> {new TrickCategory {CategoryId = "flip"}}
                     });
                     ctx.Add(new Trick
                     {
-                        Id = 2,
+                        Id = 3,
                         Slug = "back-flip",
                         Name = "Back Flip",
                         Active = true,
                         Version = 1,
                         Description = "This is a test back flip",
                         Difficulty = "medium",
-                        TrickCategories = new List<TrickCategory> {new TrickCategory {CategoryId = 2}},
+                        TrickCategories = new List<TrickCategory> {new TrickCategory {CategoryId = "flip"}},
                         Prerequisites = new List<TrickRelationship>
                         {
                             new TrickRelationship {PrerequisiteId = 1}

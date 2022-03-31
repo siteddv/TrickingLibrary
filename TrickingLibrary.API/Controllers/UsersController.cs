@@ -10,6 +10,7 @@ using SixLabors.ImageSharp.Formats.Jpeg;
 using SixLabors.ImageSharp.Processing;
 using TrickingLibrary.API.BackgroundServices.VideoEditing;
 using TrickingLibrary.API.Settings;
+using TrickingLibrary.API.ViewModels;
 using TrickingLibrary.Data;
 using TrickingLibrary.Models;
 
@@ -55,12 +56,14 @@ namespace TrickingLibrary.API.Controllers
         public IActionResult GetUser(string id) => Ok();
         
         [HttpGet("{id}/submissions")]
-        public Task<List<Submission>> GetUserSubmissions(string id)
+        public Task<List<object>> GetUserSubmissions(string id)
         {
             return _ctx.Submissions
                 .Include(x => x.Video)
+                .Include(x => x.User)
                 .Where(x => x.UserId.Equals(id))
-                .ToListAsync();
+                .Select(SubmissionViewModel.Projection)
+                .ToListAsync<object>();
         }
         
         [HttpPut("me/image")]

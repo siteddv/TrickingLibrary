@@ -60,12 +60,12 @@ namespace TrickingLibrary.API.Controllers
 
         // /api/tricks/{id}/submissions
         [HttpGet("{trickId}/submissions")]
-        public IEnumerable<Submission> GetListSubmissionsForTrick(string trickId) => 
+        public IEnumerable<object> GetListSubmissionsForTrick(string trickId) =>
             _dbContext.Submissions
-                .Include(x => x.Video)
+                .Include(x => x.User)
                 .Where(x => x.TrickId.Equals(trickId, StringComparison.InvariantCultureIgnoreCase))
-                .ToList()
-                .AsEnumerable();
+                .Select(SubmissionViewModel.Projection)
+                .ToList<object>();
 
         // /api/tricks
         [HttpPost]

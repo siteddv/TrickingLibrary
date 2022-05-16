@@ -63,7 +63,7 @@ namespace TrickingLibrary.API.Controllers
                 .Include(x => x.User)
                 .Where(x => x.UserId.Equals(id))
                 .Select(SubmissionViewModel.Projection)
-                .ToListAsync<object>();
+                .ToListAsync();
         }
         
         [HttpPut("me/image")]

@@ -26,10 +26,18 @@ namespace TrickingLibrary.API.Pages.Account
 
             var createUserResult = await userManager.CreateAsync(user, Form.Password);
 
-            if (!createUserResult.Succeeded) return Page();
+            if (createUserResult.Succeeded)
+            {
+                await signInManager.SignInAsync(user, true);
+                return Redirect(Form.ReturnUrl);
+            }
             
-            await signInManager.SignInAsync(user, true);
-            return Redirect(Form.ReturnUrl);
+            foreach (var error in createUserResult.Errors)
+            {
+                CustomErrors.Add(error.Description);
+            }
+
+            return Page();
         }
     }
 }

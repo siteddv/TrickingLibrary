@@ -62,6 +62,7 @@ namespace TrickingLibrary.API.Controllers
         [HttpGet("{trickId}/submissions")]
         public IEnumerable<object> GetListSubmissionsForTrick(string trickId) =>
             _dbContext.Submissions
+                .Include(x => x.Video)
                 .Include(x => x.User)
                 .Where(x => x.TrickId.Equals(trickId, StringComparison.InvariantCultureIgnoreCase))
                 .Select(SubmissionViewModel.Projection)

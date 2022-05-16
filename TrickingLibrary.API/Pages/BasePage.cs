@@ -1,7 +1,7 @@
 ﻿using System.Collections.Generic;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 
-namespace TrickingLibrary.API.Pages
+namespace TrickingLibrary.Api.Pages
 {
     public class BasePage : PageModel
     {

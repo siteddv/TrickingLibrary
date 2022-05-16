@@ -1,17 +1,22 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using TrickingLibrary.API.ViewModels;
+using TrickingLibrary.Api.Form;
+using TrickingLibrary.Api.ViewModels;
 using TrickingLibrary.Data;
 using TrickingLibrary.Models;
+using TrickingLibrary.Models.Abstractions;
 
-namespace TrickingLibrary.API.Controllers
+namespace TrickingLibrary.Api.Controllers
 {
-    [ApiController]
     [Route("api/comments")]
-    public class CommentController : ControllerBase
+    [Authorize]
+    public class CommentController : ApiController
     {
         private readonly AppDbContext _ctx;
 
@@ -20,39 +25,45 @@ namespace TrickingLibrary.API.Controllers
             _ctx = ctx;
         }
 
-        [HttpGet("{id:int}/replies")]
-        public IEnumerable<object> GetReplies(int id) =>
-            _ctx.Comments
-                .Where(x => x.ParentId == id)
-                .Select(CommentViewModel.Projection)
-                .ToList();
-
-        [HttpPost("{id:int}/replies")]
-        public async Task<IActionResult> Reply(int id, [FromBody] Comment reply)
+        [HttpGet("{parentId}/{parentType}")]
+        public IEnumerable<object> GetReplies(
+            int parentId,
+            CommentCreationContext.ParentType parentType,
+            [FromQuery] FeedQuery feedQuery
+        )
         {
-            var comment = _ctx.Comments.FirstOrDefault(x => x.Id == id);
-
-            if (comment == null)
+            Expression<Func<Comment, bool>> filter = parentType switch
             {
-                return NoContent();
+                CommentCreationContext.ParentType.ModerationItem => comment => comment.ModerationItemId == parentId,
+                CommentCreationContext.ParentType.Submission => comment => comment.SubmissionId == parentId,
+                CommentCreationContext.ParentType.Comment => comment => comment.ParentId == parentId,
+                _ => throw new ArgumentException(),
+            };
+
+            return _ctx.Comments
+                .Where(filter)
+                .OrderFeed(feedQuery)
+                .Select(CommentViewModels.Projection)
+                .ToList();
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> Create(
+            [FromBody] CommentCreationContext.CommentForm commentForm,
+            [FromServices] CommentCreationContext commentCreationContext)
+        {
+            try
+            {
+                var comment = await commentCreationContext
+                    .Setup(UserId)
+                    .CreateAsync(commentForm);
+
+                return Ok(CommentViewModels.Create(comment));
             }
-
-            var regex = new Regex(@"\B(?<tag>@[a-zA-Z0-9-_]+)");
-
-            reply.HtmlContent = regex.Matches(reply.Content)
-                .Aggregate(reply.Content,
-                    (content, match) =>
-                    {
-                        var tag = match.Groups["tag"].Value;
-                        return content
-                            .Replace(tag, $"<a href=\"{tag}-user-link\">{tag}</a>");
-                    });
-
-            comment.Replies.Add(reply);
-
-            await _ctx.SaveChangesAsync();
-
-            return Ok(CommentViewModel.Create(reply));
+            catch (CommentCreationContext.ParentNotFoundException e)
+            {
+                return BadRequest(e.Message);
+            }
         }
     }
 }

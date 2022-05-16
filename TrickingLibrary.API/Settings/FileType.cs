@@ -1,4 +1,4 @@
-﻿namespace TrickingLibrary.API.Settings
+﻿namespace TrickingLibrary.Api.Settings
 {
     public enum FileType
     {

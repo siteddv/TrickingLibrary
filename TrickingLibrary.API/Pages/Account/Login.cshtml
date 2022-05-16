@@ -1,5 +1,5 @@
 ﻿@page
-@model TrickingLibrary.API.Pages.Account.Login
+@model TrickingLibrary.Api.Pages.Account.Login
 
 @{
     ViewData["Title"] = "Login";
@@ -18,15 +18,15 @@
         <input asp-for="Form.Password">
         <span asp-validation-for="Form.Password"></span>
     </div>
-        @if (Model.CustomErrors.Count > 0)
-        {
-            <div class="field">
-                @foreach (var error in Model.CustomErrors)
-                {
-                    <div class="error">@error</div>
-                }
-            </div>
-        }
+    @if (Model.CustomErrors.Count > 0)
+    {
+        <div class="field">
+            @foreach (var error in Model.CustomErrors)
+            {
+                <div class="error">@error</div>
+            }
+        </div>
+    }
     <div class="field flex-row">
         <button type="submit">Log In</button>
     </div>
@@ -34,4 +34,4 @@
     <div class="field flex-row">
         <a asp-page="/Account/Register" asp-route-returnUrl="@Model.Form.ReturnUrl">Create Account</a>
     </div>
-    </form> 
+</form>

@@ -1,8 +1,9 @@
+using System.IO;
 using System.Threading.Channels;
-using IdentityModel;
-using IdentityServer4;
-using IdentityServer4.Models;
+using System.Threading.Tasks;
+using FluentValidation.AspNetCore;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
@@ -10,42 +11,59 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using TrickingLibrary.API.BackgroundServices.VideoEditing;
+using TrickingLibrary.Api.BackgroundServices.SubmissionVoting;
+using TrickingLibrary.Api.BackgroundServices.VideoEditing;
+using TrickingLibrary.Api.Services.Email;
+using TrickingLibrary.Api.Services.Storage;
 using TrickingLibrary.Data;
+using TrickingLibrary.Data.VersionMigrations;
 
-namespace TrickingLibrary.API
+namespace TrickingLibrary.Api
 {
     public class Startup
     {
         private readonly IConfiguration _config;
         private readonly IWebHostEnvironment _env;
-        private const string AllCors = "All";
-        
-        public Startup(IWebHostEnvironment env, IConfiguration config)
+        private const string NuxtJsApp = "NuxtJsApp";
+
+        public Startup(IConfiguration config,
+            IWebHostEnvironment env)
         {
-            _env = env;
             _config = config;
+            _env = env;
         }
-        
+
         public void ConfigureServices(IServiceCollection services)
         {
-            services.AddControllers();
-            
             services.AddDbContext<AppDbContext>(options => options.UseInMemoryDatabase("Dev"));
-            
+            // services.AddDbContext<AppDbContext>(options => options.UseNpgsql(_config.GetConnectionString("Default")));
+
             AddIdentity(services);
 
-            services.AddControllers();
+            services.AddControllers()
+                .AddFluentValidation(x => x
+                    .RegisterValidatorsFromAssembly(typeof(Startup).Assembly));
 
             services.AddRazorPages();
-            
+
+            services.Configure<ModerationItemReviewContext.ModerationSettings>(_config.GetSection(nameof(ModerationItemReviewContext.ModerationSettings)));
+            services.Configure<SendGridOptions>(_config.GetSection(nameof(SendGridOptions)));
+
+
             services.AddHostedService<VideoEditingBackgroundService>()
                 .AddSingleton(_ => Channel.CreateUnbounded<EditVideoMessage>())
                 .AddScoped<VersionMigrationContext>()
-                .AddFileManager(_config)
-                .AddCors(options => options.AddPolicy(AllCors, build => build.AllowAnyHeader()
-                    .AllowAnyOrigin()
-                    .AllowAnyMethod()));
+                .AddScoped<EmailClient>()
+                .AddSingleton<ModerationItemReviewContext>()
+                .AddSingleton<ISubmissionVoteSink, SubmissionVotingService>()
+                .AddHostedService(provider => (SubmissionVotingService) provider.GetRequiredService<ISubmissionVoteSink>())
+                .AddTransient<CommentCreationContext>()
+                .AddFileServices(_config)
+                .AddCors(options => options.AddPolicy(NuxtJsApp, build => build
+                    .AllowAnyHeader()
+                    .WithOrigins("https://localhost:3000", "https://app.raw-coding.net")
+                    .AllowAnyMethod()
+                    .AllowCredentials()));
         }
 
         public void Configure(IApplicationBuilder app)
@@ -55,31 +73,37 @@ namespace TrickingLibrary.API
                 app.UseDeveloperExceptionPage();
             }
 
-            app.UseCors(AllCors);
+            app.UseCors(NuxtJsApp);
 
             app.UseRouting();
-            
-            app.UseAuthentication();
 
-            app.UseIdentityServer();
+            app.UseAuthentication();
 
             app.UseAuthorization();
 
             app.UseEndpoints(endpoints =>
             {
                 endpoints.MapDefaultControllerRoute();
+
                 endpoints.MapRazorPages();
             });
         }
-        
+
         private void AddIdentity(IServiceCollection services)
         {
-            services.AddDbContext<IdentityDbContext>(config =>
-                config.UseInMemoryDatabase("DevIdentity"));
+            services.AddDbContext<ApiIdentityDbContext>(config =>
+            config.UseInMemoryDatabase("DevIdentity"));
+            // services.AddDbContext<ApiIdentityDbContext>(config =>
+                // config.UseNpgsql(_config.GetConnectionString("Default")));
+
+            services.AddDataProtection()
+                .SetApplicationName("TrickingLibrary")
+                .PersistKeysToDbContext<ApiIdentityDbContext>();
 
             services.AddIdentity<IdentityUser, IdentityRole>(options =>
                 {
                     options.User.RequireUniqueEmail = true;
+
                     if (_env.IsDevelopment())
                     {
                         options.Password.RequireDigit = false;
@@ -90,88 +114,37 @@ namespace TrickingLibrary.API
                     }
                     else
                     {
-                        //todo configure for production
+                        options.Password.RequireDigit = true;
+                        options.Password.RequiredLength = 8;
+                        options.Password.RequireLowercase = true;
+                        options.Password.RequireUppercase = false;
+                        options.Password.RequireNonAlphanumeric = false;
                     }
                 })
-                .AddEntityFrameworkStores<IdentityDbContext>()
+                .AddEntityFrameworkStores<ApiIdentityDbContext>()
                 .AddDefaultTokenProviders();
 
             services.ConfigureApplicationCookie(config =>
             {
                 config.LoginPath = "/Account/Login";
                 config.LogoutPath = "/api/auth/logout";
+                config.Cookie.Domain = _config["CookieDomain"];
             });
-            
-            var identityServerBuilder = services.AddIdentityServer();
-
-            identityServerBuilder.AddAspNetIdentity<IdentityUser>();
-
-            if (_env.IsDevelopment())
-            {
-                identityServerBuilder.AddInMemoryIdentityResources(new []
-                {
-                    new IdentityResources.OpenId(),
-                    new IdentityResources.Profile(),
-                    new IdentityResource(TrickingLibraryConstants.IdentityResources.RoleScope,
-                        new[] {TrickingLibraryConstants.Claims.Role}),
-                });
-            
-                identityServerBuilder.AddInMemoryApiScopes(new []
-                {
-                    new ApiScope(IdentityServerConstants.LocalApi.ScopeName,
-                        new[]
-                        {
-                            JwtClaimTypes.PreferredUserName,
-                            TrickingLibraryConstants.Claims.Role
-                        }),
-                });
-
-                identityServerBuilder.AddInMemoryClients(new[]
-                {
-                    new Client
-                    {
-                        ClientId = "web-client",
-                        AllowedGrantTypes = GrantTypes.Code,
-
-                        RedirectUris = new[]
-                        {
-                            "https://localhost:3000/oidc/sign-in-callback.html",
-                            "https://localhost:3000/oidc/sign-in-silent-callback.html"
-                        },
-                        PostLogoutRedirectUris = new[] {"https://localhost:3000"},
-                        AllowedCorsOrigins = new[] {"https://localhost:3000"},
-
-                        AllowedScopes = new []
-                        {
-                            IdentityServerConstants.StandardScopes.OpenId,
-                            IdentityServerConstants.StandardScopes.Profile,
-                            IdentityServerConstants.LocalApi.ScopeName,
-                            TrickingLibraryConstants.IdentityResources.RoleScope
-                        },
-                        
-                        RequirePkce = true,
-                        AllowAccessTokensViaBrowser = true,
-                        RequireConsent = false,
-                        RequireClientSecret = false,
-                    },
-                });
-
-                identityServerBuilder.AddDeveloperSigningCredential();
-            }
-            
-            services.AddLocalApiAuthentication();
 
             services.AddAuthorization(options =>
             {
-                options.AddPolicy(TrickingLibraryConstants.Policies.Mod, policy =>
-                {
-                    var is4Policy = options.GetPolicy(IdentityServerConstants.LocalApi.PolicyName);
-                    policy.Combine(is4Policy);
-                    policy.RequireClaim(TrickingLibraryConstants.Claims.Role,
-                        TrickingLibraryConstants.Roles.Mod);
-                });
+                options.AddPolicy(TrickingLibraryConstants.Policies.Mod, policy => policy
+                    .RequireAuthenticatedUser()
+                    .RequireClaim(TrickingLibraryConstants.Claims.Role,
+                        TrickingLibraryConstants.Roles.Mod,
+                        TrickingLibraryConstants.Roles.Admin)
+                );
+                options.AddPolicy(TrickingLibraryConstants.Policies.Admin, policy => policy
+                    .RequireAuthenticatedUser()
+                    .RequireClaim(TrickingLibraryConstants.Claims.Role,
+                        TrickingLibraryConstants.Roles.Admin)
+                );
             });
         }
-        
     }
 }

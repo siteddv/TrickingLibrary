@@ -1,11 +1,12 @@
-﻿using System.Threading.Tasks;
+﻿using System.ComponentModel.DataAnnotations;
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using TrickingLibrary.API.Forms;
-using TrickingLibrary.Models;
+using Microsoft.Extensions.Hosting;
 
-namespace TrickingLibrary.API.Pages.Account
+namespace TrickingLibrary.Api.Pages.Account
 {
     public class Login : BasePage
     {
@@ -16,8 +17,7 @@ namespace TrickingLibrary.API.Pages.Account
             Form = new LoginForm {ReturnUrl = returnUrl};
         }
 
-        public async Task<IActionResult> OnPostAsync(
-            [FromServices] SignInManager<IdentityUser> signInManager)
+        public async Task<IActionResult> OnPostAsync([FromServices] SignInManager<IdentityUser> signInManager)
         {
             if (!ModelState.IsValid)
                 return Page();
@@ -35,6 +35,14 @@ namespace TrickingLibrary.API.Pages.Account
             return Page();
         }
 
-        
+        public class LoginForm
+        {
+            [Required] public string ReturnUrl { get; set; }
+            [Required] public string Username { get; set; }
+
+            [Required]
+            [DataType(DataType.Password)]
+            public string Password { get; set; }
+        }
     }
 }

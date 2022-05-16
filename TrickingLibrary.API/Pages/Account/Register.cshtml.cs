@@ -1,10 +1,10 @@
-﻿using System.Threading.Tasks;
+﻿using System.ComponentModel.DataAnnotations;
+using System.Threading.Tasks;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using TrickingLibrary.API.Forms;
 
-namespace TrickingLibrary.API.Pages.Account
+namespace TrickingLibrary.Api.Pages.Account
 {
     public class Register : BasePage
     {
@@ -29,15 +29,32 @@ namespace TrickingLibrary.API.Pages.Account
             if (createUserResult.Succeeded)
             {
                 await signInManager.SignInAsync(user, true);
+
                 return Redirect(Form.ReturnUrl);
             }
-            
+
             foreach (var error in createUserResult.Errors)
             {
                 CustomErrors.Add(error.Description);
             }
 
             return Page();
+        }
+
+        public class RegisterForm
+        {
+            [Required] public string ReturnUrl { get; set; }
+            [Required] public string Email { get; set; }
+            [Required] public string Username { get; set; }
+
+            [Required]
+            [DataType(DataType.Password)]
+            public string Password { get; set; }
+
+            [Required]
+            [DataType(DataType.Password)]
+            [Compare(nameof(Password))]
+            public string ConfirmPassword { get; set; }
         }
     }
 }

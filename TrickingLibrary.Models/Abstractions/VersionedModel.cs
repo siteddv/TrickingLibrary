@@ -1,11 +1,9 @@
-﻿using System;
-
-namespace TrickingLibrary.Models.Abstractions
+﻿namespace TrickingLibrary.Models.Abstractions
 {
-    public class VersionedModel : BaseModel<int>
+    public abstract class VersionedModel : Mutable<int>
     {
-        public int Version { get; set; }
-        public bool Active { get; set; }
-        public DateTime TimeStamp { get; set; }
+        public string Slug { get; set; }
+        public int Version { get; set; } = 1;
+        public VersionState State { get; set; } = VersionState.Staged;
     }
 }

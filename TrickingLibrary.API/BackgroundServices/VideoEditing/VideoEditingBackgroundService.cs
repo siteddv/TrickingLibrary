@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Channels;
@@ -7,29 +8,37 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using TrickingLibrary.API.Settings;
+using Microsoft.Extensions.Options;
+using TrickingLibrary.Api.Services.Storage;
+using TrickingLibrary.Api.Settings;
 using TrickingLibrary.Data;
 using TrickingLibrary.Models;
 
-namespace TrickingLibrary.API.BackgroundServices.VideoEditing
+namespace TrickingLibrary.Api.BackgroundServices.VideoEditing
 {
     public class VideoEditingBackgroundService : BackgroundService
     {
         private readonly ILogger<VideoEditingBackgroundService> _logger;
+        private readonly IOptionsMonitor<FileSettings> _fileSettingsMonitor;
         private readonly IServiceProvider _serviceProvider;
-        private readonly IFileManager _fileManager;
+        private readonly TemporaryFileStorage _temporaryFileStorage;
+        private readonly IFileProvider _fileProvider;
         private readonly ChannelReader<EditVideoMessage> _channelReader;
 
         public VideoEditingBackgroundService(
             Channel<EditVideoMessage> channel,
             ILogger<VideoEditingBackgroundService> logger,
+            IOptionsMonitor<FileSettings> fileSettingsMonitor,
             IServiceProvider serviceProvider,
-            IFileManager fileManager)
+            TemporaryFileStorage temporaryFileStorage,
+            IFileProvider fileProvider)
         {
             _logger = logger;
+            _fileSettingsMonitor = fileSettingsMonitor;
             _serviceProvider = serviceProvider;
+            _temporaryFileStorage = temporaryFileStorage;
+            _fileProvider = fileProvider;
             _channelReader = channel.Reader;
-            _fileManager = fileManager;
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -37,16 +46,16 @@ namespace TrickingLibrary.API.BackgroundServices.VideoEditing
             while (await _channelReader.WaitToReadAsync(stoppingToken))
             {
                 var message = await _channelReader.ReadAsync(stoppingToken);
-                var inputPath = _fileManager.TemporarySavePath(message.Input);
+                var inputPath = _temporaryFileStorage.GetSavePath(message.Input);
                 var outputConvertedName = TrickingLibraryConstants.Files.GenerateConvertedFileName();
                 var outputThumbnailName = TrickingLibraryConstants.Files.GenerateThumbnailFileName();
-                var outputConvertedPath = _fileManager.TemporarySavePath(outputConvertedName);
-                var outputThumbnailPath = _fileManager.TemporarySavePath(outputThumbnailName);
+                var outputConvertedPath = _temporaryFileStorage.GetSavePath(outputConvertedName);
+                var outputThumbnailPath = _temporaryFileStorage.GetSavePath(outputThumbnailName);
                 try
                 {
                     var startInfo = new ProcessStartInfo
                     {
-                        FileName = _fileManager.GetFfmpegPath(),
+                        FileName = _fileSettingsMonitor.CurrentValue.FFMPEGPath,
                         Arguments = $"-y -i {inputPath} -an -vf scale=540x380 {outputConvertedPath} -ss 00:00:00 -vframes 1 -vf scale=540x380 {outputThumbnailPath}",
                         CreateNoWindow = true,
                         UseShellExecute = false,
@@ -58,23 +67,35 @@ namespace TrickingLibrary.API.BackgroundServices.VideoEditing
                         process.WaitForExit();
                     }
 
-                    if (!_fileManager.TemporaryFileExists(outputConvertedName))
+                    if (!_temporaryFileStorage.TemporaryFileExists(outputConvertedName))
+                    {
                         throw new Exception("FFMPEG failed to generate converted video");
-                    
-                    if (!_fileManager.TemporaryFileExists(outputThumbnailName))
+                    }
+
+                    if (!_temporaryFileStorage.TemporaryFileExists(outputThumbnailName))
+                    {
                         throw new Exception("FFMPEG failed to generate thumbnail");
-                    
+                    }
+
                     using (var scope = _serviceProvider.CreateScope())
                     {
                         var ctx = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
                         var submission = ctx.Submissions.FirstOrDefault(x => x.Id.Equals(message.SubmissionId));
 
-                        submission.Video = new Video
+                        using (var videoStream = File.Open(outputConvertedPath, FileMode.Open, FileAccess.Read))
+                        using (var thumbnailStream = File.Open(outputThumbnailPath, FileMode.Open, FileAccess.Read))
                         {
-                            VideoLink = _fileManager.GetFileUrl(outputConvertedName, FileType.Video),
-                            ThumbLink = _fileManager.GetFileUrl(outputThumbnailName, FileType.Image),
-                        };
+                            var videoLink = _fileProvider.SaveVideoAsync(videoStream);
+                            var thumbLink = _fileProvider.SaveThumbnailAsync(thumbnailStream);
+                            submission.Video = new Video
+                            {
+                                VideoLink = await videoLink,
+                                ThumbLink = await thumbLink,
+                            };
+                        }
+
+                        submission.VideoProcessed = true;
 
                         await ctx.SaveChangesAsync(stoppingToken);
                     }
@@ -82,12 +103,12 @@ namespace TrickingLibrary.API.BackgroundServices.VideoEditing
                 catch (Exception e)
                 {
                     _logger.LogError(e, "Video Processing Failed for {0}", message.Input);
-                    _fileManager.DeleteTemporaryFile(outputConvertedName);
-                    _fileManager.DeleteTemporaryFile(outputThumbnailName);
                 }
                 finally
                 {
-                    _fileManager.DeleteTemporaryFile(message.Input);
+                    _temporaryFileStorage.DeleteTemporaryFile(outputConvertedName);
+                    _temporaryFileStorage.DeleteTemporaryFile(outputThumbnailName);
+                    _temporaryFileStorage.DeleteTemporaryFile(message.Input);
                 }
             }
         }

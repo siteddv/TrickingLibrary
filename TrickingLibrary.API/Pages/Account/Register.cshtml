@@ -1,5 +1,5 @@
 ﻿@page
-@model TrickingLibrary.API.Pages.Account.Register
+@model TrickingLibrary.Api.Pages.Account.Register
 
 @{
     ViewData["Title"] = "Register";
@@ -9,14 +9,14 @@
 <form method="post">
     <input type="hidden" asp-for="Form.ReturnUrl" value="@Model.Form.ReturnUrl">
     @if (Model.CustomErrors.Count > 0)
-        {
-            <div class="field">
-                @foreach (var error in Model.CustomErrors)
-                {
-                    <div class="error">@error</div>
-                }
-            </div>
-        }
+    {
+        <div class="field">
+            @foreach (var error in Model.CustomErrors)
+            {
+                <div class="error">@error</div>
+            }
+        </div>
+    }
     <div class="field">
         <label>Username</label>
         <input asp-for="Form.Username">
@@ -44,4 +44,4 @@
     <div class="field flex-row">
         <a asp-page="/Account/Login" asp-route-returnUrl="@Model.Form.ReturnUrl">Back to Login</a>
     </div>
-</form> 
+</form>

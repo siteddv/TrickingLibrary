@@ -1,20 +1,22 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using TrickingLibrary.API.Forms;
-using TrickingLibrary.API.ViewModels;
+using TrickingLibrary.Api.Form;
+using TrickingLibrary.Api.ViewModels;
 using TrickingLibrary.Data;
+using TrickingLibrary.Data.VersionMigrations;
 using TrickingLibrary.Models;
 using TrickingLibrary.Models.Moderation;
 
-namespace TrickingLibrary.API.Controllers
+namespace TrickingLibrary.Api.Controllers
 {
-    [ApiController]
     [Route("api/moderation-items")]
-    public class ModerationItemController : ControllerBase
+    public class ModerationItemController : ApiController
     {
         private readonly AppDbContext _ctx;
 
@@ -24,99 +26,105 @@ namespace TrickingLibrary.API.Controllers
         }
 
         [HttpGet]
-        public IEnumerable<ModerationItem> All() => _ctx.ModerationItems
-            .Where(x => !x.Deleted)
-            .ToList();
-
-        [HttpGet("{id:int}")]
-        public object Get(int id) => _ctx.ModerationItems
-            .Include(x => x.Comments)
-            .Include(x => x.Reviews)
-            .Where(x => x.Id.Equals(id))
-            .Select(ModerationItemViewModel.Projection)
-            .FirstOrDefault();
-        
-        [HttpGet("{id:int}/comments")]
-        public IEnumerable<object> GetComments(int id) =>
-            _ctx.Comments
-                .Where(x => x.ModerationItemId.Equals(id))
-                .Select(CommentViewModel.Projection)
-                .ToList();
-        
-        [HttpPost("{id:int}/comments")]
-        public async Task<IActionResult> Comment(int id, [FromBody] Comment comment)
+        public object All([FromQuery] FeedQuery feedQuery, int user)
         {
-            if (!_ctx.ModerationItems.Any(x => x.Id == id))
-                return NoContent();
-            
-            var regex = new Regex(@"\B(?<tag>@[a-zA-Z0-9-_]+)");
+            var query = _ctx.ModerationItems.Where(x => !x.Deleted);
 
-            comment.HtmlContent = regex.Matches(comment.Content)
-                .Aggregate(comment.Content,
-                    (content, match) =>
-                    {
-                        var tag = match.Groups["tag"].Value;
-                        return content
-                            .Replace(tag, $"<a href=\"{tag}-user-link\">{tag}</a>");
-                    });
+            if (user == 1)
+                query = query.Where(x => x.UserId == UserId);
 
-            comment.ModerationItemId = id;
-            _ctx.Add(comment);
-            await _ctx.SaveChangesAsync();
-
-            return Ok(CommentViewModel.Create(comment));
-        }
-        
-        [HttpGet("{id:int}/reviews")]
-        public IEnumerable<Review> GetReviews(int id) =>
-            _ctx.Reviews
-                .Where(x => x.ModerationItemId.Equals(id))
-                .ToList();
-
-        [HttpPost("{id:int}/reviews")]
-        public async Task<IActionResult> Review(int id, 
-            [FromBody] ReviewForm reviewForm,
-            [FromServices] VersionMigrationContext migrationContext)
-        {
-            var modItem = _ctx.ModerationItems
+            var moderationItems = query
+                .Include(x => x.User)
                 .Include(x => x.Reviews)
-                .FirstOrDefault(x => x.Id == id);
-            
-            if (modItem == null)
-                return NoContent();
+                .OrderFeed(feedQuery)
+                .ToList();
 
-            if (modItem.Deleted)
-                return BadRequest("Moderation item no longer exists.");
-            
-            // todo make this async safe
-            var review = new Review
+            var targetMapping = new Dictionary<string, object>();
+            foreach (var group in moderationItems.GroupBy(x => x.Type))
             {
-                ModerationItemId = id,
-                Comment = reviewForm.Comment,
-                Status = reviewForm.Status,
-            };
-            
-            _ctx.Add(review);
-            
-            // todo use configuration replace the magic '3'
+                var targetIds = group
+                    .Select(m => new[] {m.Target, m.Current})
+                    .SelectMany(x => x)
+                    .Where(x => x > 0)
+                    .ToArray();
+
+                if (group.Key == ModerationTypes.Trick)
+                {
+                    _ctx.Tricks
+                        .Where(t => targetIds.Contains(t.Id))
+                        .ToList()
+                        .ForEach(trick => targetMapping[ModerationTypes.Trick + trick.Id] =
+                            TrickViewModels.CreateFlat(trick));
+                }
+                else if (group.Key == ModerationTypes.Category)
+                {
+                    _ctx.Categories
+                        .Where(c => targetIds.Contains(c.Id))
+                        .ToList()
+                        .ForEach(category => targetMapping[ModerationTypes.Category + category.Id] =
+                            CategoryViewModels.CreateFlat(category));
+                }
+                else if (group.Key == ModerationTypes.Difficulty)
+                {
+                    _ctx.Difficulties
+                        .Where(d => targetIds.Contains(d.Id))
+                        .ToList()
+                        .ForEach(difficulty => targetMapping[ModerationTypes.Difficulty + difficulty.Id] =
+                            DifficultyViewModels.CreateFlat(difficulty));
+                }
+            }
+
+            return moderationItems.Select(x => new
+            {
+                x.Id,
+                x.Current,
+                x.Target,
+                x.Reason,
+                x.Type,
+                Updated = x.Updated.ToLocalTime().ToString("HH:mm dd/MM/yyyy"),
+                Reviews = x.Reviews.Select(y => y.Status).ToList(),
+                User = UserViewModels.CreateFlat(x.User),
+                CurrentObject = x.Current > 0 ? targetMapping[x.Type + x.Current] : null,
+                TargetObject = x.Target > 0 ? targetMapping[x.Type + x.Target] : null,
+            });
+        }
+
+        [HttpGet("{id}")]
+        public object Get(int id) => _ctx.ModerationItems
+            .Where(x => x.Id.Equals(id))
+            .Select(ModerationItemViewModels.Projection)
+            .FirstOrDefault();
+
+        [HttpGet("{id}/reviews")]
+        public IEnumerable<object> GetReviews(int id) =>
+            _ctx.Reviews
+                .Include(x => x.User)
+                .Where(x => x.ModerationItemId.Equals(id))
+                .Select(ReviewViewModels.WithUserProjection)
+                .ToList();
+
+        [HttpPut("{id}/reviews")]
+        [Authorize(TrickingLibraryConstants.Policies.Mod)]
+        public async Task<IActionResult> Review(
+            int id,
+            [FromBody] ModerationItemReviewContext.ReviewForm reviewForm,
+            [FromServices] ModerationItemReviewContext moderationItemReviewContext
+        )
+        {
             try
             {
-                if (modItem.Reviews.Count >= 3)
-                {
-                    migrationContext.Migrate(modItem);
-                    modItem.Deleted = true;
-                }
-
-                await _ctx.SaveChangesAsync();
+                await moderationItemReviewContext.Review(id, UserId, reviewForm);
             }
-            catch (InvalidVersionException e)
+            catch (VersionMigrationContext.InvalidVersionException e)
             {
                 return BadRequest(e.Message);
             }
-            
-            await _ctx.SaveChangesAsync();
+            catch (ModerationItemReviewContext.ModerationItemNotFound)
+            {
+                return NoContent();
+            }
 
-            return Ok(ReviewViewModel.Create(review));
+            return Ok();
         }
     }
 }
